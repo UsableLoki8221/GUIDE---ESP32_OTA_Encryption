@@ -7,5 +7,5 @@
 "fs_url":"https://github.com/UsableLoki8221/GUIDE---ESP32_OTA_Encryption/raw/refs/heads/main/encrypted_filesystem.bin",
 "fs_version":"2.2.2",
 "fs_size":"1441824",
-"fs_hash":"cecb9014316d84298cef6d16889541a7dc62c974e02c9b99ed9aa3efebe7234c"
+"fs_hash":"cccb309877c951fb986fbbcaa1b0fcac983d08bbb22465234bc8d90a4aaef141"
 }
