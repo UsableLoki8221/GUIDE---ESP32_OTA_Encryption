@@ -1,10 +1,10 @@
 {
-"fw_url":"https://github.com/UsableLoki8221/GUIDE---ESP32_OTA_Encryption/raw/refs/heads/main/encrypted_firmware.bin",
+"fw_url":"https://raw.githubusercontent.com/UsableLoki8221/GUIDE---ESP32_OTA_Encryption/refs/heads/main/encrypted_firmware.bin",
 "fw_version":"2.2.2",
 "fw_size":"939488",
 "fw_hash":"eb679a190dac73deebb4d5a412ef91cefa34bcaeb7d00967b7c1092d5654b9e1"
 ,
-"fs_url":"https://github.com/UsableLoki8221/GUIDE---ESP32_OTA_Encryption/raw/refs/heads/main/encrypted_filesystem.bin",
+"fs_url":"https://raw.githubusercontent.com/UsableLoki8221/GUIDE---ESP32_OTA_Encryption/refs/heads/main/encrypted_filesystem.bin",
 "fs_version":"2.2.2",
 "fs_size":"1572896",
 "fs_hash":"cc30ad3ac7c2c00de1351eee03ddd962c56660d357023c381262f63c7f6bbe6c"
