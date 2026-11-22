@@ -1,3 +1,8 @@
+'''
+Code and guide posted at:
+https://github.com/UsableLoki8221/GUIDE---ESP32_OTA_Encryption
+'''
+
 import re
 import requests
 import sys
@@ -16,17 +21,34 @@ import configparser
 # OTA uses plaintext binary whether or not flash encryption is enabled
 # This script is a manual encryption of the binary using OTA_KEY with HMAC capabilities to ENCRYPT the file
 
-ENABLE_INFO = False # display logging events for troubleshooting if needed
-DEBUGGING_CONFIGURATION = True # allows for export of serial log messages for testing, set to False when ready for release state
+ENV_NAME = "esp32-s3"                               # match this to the env name you're using in your platformio.ini
 
-FILESYSTEM = True
+version_info_URL = "https://raw.githubusercontent.com/UsableLoki8221/GUIDE---ESP32_OTA_Encryption/refs/heads/main/version.txt" # YOUR URL WHERE YOU PLACE JSON INFORMATION- FOLLOW THE FORMAT OF:
+'''
+{
+"fw_url":"https://raw.githubusercontent.com/.../encrypted_firmware.bin",
+"fw_version":"0.1.7",
+"fw_size":"1340656",
+"fw_hash":"31e43e9b5a2eb13e04122f4cb72220d370a73adb332a7a7e9e59b7d9e87699b8"
+,
+"fs_url":"https://raw.githubusercontent.com/.../encrypted_filesystem.bin",
+"fs_version":"0.0.5",
+"fs_size":"1572896",
+"fs_hash":"33013485de2c92a492e27500574b2c9b0f73d438dde03e49af5163db87df8971"
+}
+'''
+
+FILESYSTEM = True # if you use a filesystem in your project this script can also encrypt it for security
+
+ENABLE_INFO = False # display logging events for troubleshooting if needed
+DEBUGGING_CONFIGURATION = True                      # allows for export of serial log messages for testing, set to [False] when ready for release state
+
 
 #   THIS SCRIPT WILL AUTOMATICALLY DISTINGUISH WHETHER FIRMWARE OR FILESYSTEM NEED TO BE BUILT
 #                           BASED ON VERSION COMPARISONS FOUND AT 
 #   [FIRMWARE: ON THE .INO AROUND ~LINE 8 AT THE VERSION STRING DECLARATION]
 #   [FILESYSTEM: WITHIN "data\fs_version.txt"]
-#
-#   THESE COMPARISONS ARE MADE AGAINST THE LISTED VERSIONS AT version_info_URL - https://raw.githubusercontent.com/UsableLoki8221/Test/main/version.txt
+
 #
 #   FOLLOW RESPECTIVE INSTRUCTIONS FOR...
 #   FIRMWARE:       "C:\Users\Vero\Desktop\Astro Alerts Files\AAA_Update Firmware OTA Instructions.txt"
@@ -34,25 +56,35 @@ FILESYSTEM = True
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-#KEY_BASE_NAME = SCRIPT_DIR / "flash_encryption_key"
+FIRMWARE_PATH = SCRIPT_DIR / "src/main.cpp"                         # your main file needs the line:        const String FIRMWARE_VERSION = "X.X.X";
+FILESYSTEM_VERSION_TXT_PATH = SCRIPT_DIR / "data/fs_version.txt"    # your file system needs a file on root called fs_version.txt with one-line plain information:      X.X.X
+#   THESE COMPARISONS ARE MADE AGAINST THE LISTED VERSIONS AT version_info_URL - https://raw.githubusercontent.com/.../version.txt
+
 KEY_BASE_NAME = SCRIPT_DIR / "OTA_encryption_key"
+PLATFORMIO_INI = SCRIPT_DIR / "platformio.ini"      # ini location
 
-version_info_URL = "https://raw.githubusercontent.com/UsableLoki8221/Test/main/version.txt"
-FIRMWARE_PATH = SCRIPT_DIR / "src/AstroAlert_V0_0_9_PCB_integration.ino"
-FILESYSTEM_VERSION_TXT_PATH = SCRIPT_DIR / "data/fs_version.txt"
-PIO_INI_PATH = SCRIPT_DIR / "platformio.ini"
+CHECK_FOR_RELEASE_STATUS = True                     # my script does checks for release status since this is aimed at commercial releases (if you don't want to accidentally upload a debug firmware)
+''' release flags checked in .ini file
+    pattern1 = "build_type = release"
+    pattern2 = "-DPRODUCTION=1"
+    pattern3 = "-DCORE_DEBUG_LEVEL=0"
+'''
 
-OTA_FS_BINARY_PATH = SCRIPT_DIR / "OTA_Versions/AA_filesystem.bin"
-OTA_FS_VERSION = SCRIPT_DIR / "OTA_Versions/OTA_FS_Version.txt" # filesystem must be manually updated as X.X.X at fs_version.txt
-OTA_FW_BINARY_PATH = SCRIPT_DIR / "OTA_Versions/AA_firmware.bin"
-OTA_FW_VERSION = SCRIPT_DIR / "OTA_Versions/OTA_FW_Version.txt" # firmware must be manually updated in .ino at [const String FIRMWARE_VERSION = "0.1.4";]
+# this is where the encrypted binaries will be outputted for upload to your web server
+OTA_FS_BINARY_PATH = SCRIPT_DIR / "OTA_Versions/encrypted_filesystem.bin"
+OTA_FW_BINARY_PATH = SCRIPT_DIR / "OTA_Versions/encrypted_firmware.bin" 
 
-OTA_KEY_PATH = r"OTA_encryption_key.bin"
+# these are the new json texts that should be copy/pasted into your version URL (see example below), but you can just copy/paste from the terminal window when this script runs
+OTA_FS_VERSION = SCRIPT_DIR / "OTA_Versions/OTA_FS_Version.txt"
+OTA_FW_VERSION = SCRIPT_DIR / "OTA_Versions/OTA_FW_Version.txt"
+
+
 
 ###
 ### you shouldn't need to change anything below here
 ###
 
+OTA_KEY_PATH = r"OTA_encryption_key.bin"
 
 RED = "\033[31m"
 ORANGE = "\033[38;5;208m"
@@ -89,19 +121,76 @@ def printInfo(msg):
         print(f"[INFO] {msg}")
 
 
+
+def check_pio_ini_release_flags(path):
+    config = configparser.ConfigParser(interpolation=None)
+
+    if not config.read(path):
+        raise FileNotFoundError(f"Could not read {path}")
+
+    def clean_value(value):
+        return value.split(";", 1)[0].strip().strip('"').strip("'")
+
+    def get_setting(key, fallback=""):
+        section = f"env:{ENV_NAME}"
+        visited = set()
+
+        while section and section not in visited:
+            visited.add(section)
+
+            if section not in config:
+                break
+
+            if config.has_option(section, key):
+                return clean_value(config.get(section, key))
+
+            section = config.get(section, "extends", fallback="").strip()
+
+        if config.has_section("env") and config.has_option("env", key):
+            return clean_value(config.get("env", key))
+
+        return fallback
+
+    build_type = get_setting("build_type")
+    build_flags = get_setting("build_flags")
+
+    pattern1_found = build_type.lower() == "release"
+    pattern2_found = "-DPRODUCTION=1" in build_flags
+    pattern3_found = "-DCORE_DEBUG_LEVEL=0" in build_flags
+
+    if pattern1_found and pattern2_found and pattern3_found:
+        print(f"{GREEN}PlatformIO environment '{ENV_NAME}' is correctly configured for Release{RESET}")
+        return True
+
+
+    print(
+        f"{GREEN if pattern1_found else YELLOW}'build_type = release':{pattern1_found}{RESET}      "
+        f"{GREEN if pattern2_found else YELLOW}'-DPRODUCTION=1':{pattern2_found}{RESET}      "
+        f"{GREEN if pattern3_found else YELLOW}'-DCORE_DEBUG_LEVEL=0':{pattern3_found}{RESET}"
+    )
+
+    if DEBUGGING_CONFIGURATION:
+        print(f"{ORANGE}DEBUGGING CONFIGURATION IS ACTIVE, SET TO FALSE TO CHECK FOR RELEASE STATE{RESET}")
+        return True
+
+    sys.exit(
+        f"{RED}PlatformIO environment '{ENV_NAME}' is still set to a debug configuration, go change it right meow{RESET}"
+    )
+
+
+
 def extract_local_version(path):
-    pattern = re.compile(r'FIRMWARE_VERSION\s*=\s*"([\d\.]+)"')
+    pattern = re.compile(r'FIRMWARE_VERSION\s*=\s*"([\d.]+)"')
 
     with open(path, "r", encoding="utf-8") as f:
-        for i in range(20):
-            line = f.readline()
-            if not line:
-                break
-            match = pattern.search(line)
-            if match:
-                return match.group(1)
+        contents = f.read()
+
+    match = pattern.search(contents)
+    if match:
+        return match.group(1)
 
     sys.exit(f"{RED}FIRMWARE_VERSION not found in .ino{RESET}")
+
 
 def fetch_remote_version(fs_version_or_fw_version):
     r = requests.get(version_info_URL, timeout=10)
@@ -125,11 +214,11 @@ def compare_firmware_versions(path):
         return local_version
     elif local_parsed == remote_parsed:
         print(f"{YELLOW}Local firmware ({local_version}) is the same as remote ({remote_version}){RESET}")
-        return None
+        return local_version if DEBUGGING_CONFIGURATION else None
         #sys.exit(f"{YELLOW}Firmware version has not been updated to be above github webpage's firmware")
     else:
         print(f"{RED}Local firmware ({local_version}) is older than remote ({remote_version}){RESET}")
-        return None
+        return local_version if DEBUGGING_CONFIGURATION else None
         #sys.exit(f"{RED}Firmware version has not been updated to be above github webpage's firmware")
 
 def check_internet_connection():
@@ -140,38 +229,7 @@ def check_internet_connection():
         sys.exit(f"{RED}ERROR: No access to the webpage or no internet connection.{RESET}")
 
 
-def check_pio_ini_release_flag(path):
-    pattern1 = "build_type = release"
-    pattern2 = "-DPRODUCTION=1"
-    pattern3 = "-DCORE_DEBUG_LEVEL=0"
 
-    pattern1_found = False
-    pattern2_found = False
-    pattern3_found = DEBUGGING_CONFIGURATION
-
-    with open(path, "r", encoding="utf-8") as f:
-        for i in range(50):
-            line = f.readline()
-            if not line:
-                break
-            if pattern1 in line:
-                pattern1_found = True
-                #print(f"{GREEN}platformio.ini is correctly set to Release{RESET}")
-            if pattern2 in line:
-                pattern2_found = True
-                #print(f"{GREEN}platformio.ini is correctly set to Production Mode{RESET}")   
-            if pattern3 in line:
-                pattern3_found = True
-                #print(f"{GREEN}platformio.ini is correctly set to Remove debug messages{RESET}")
-            if pattern1_found and pattern2_found and pattern3_found:    
-                return True
-
-    print(
-        f"{GREEN if pattern1_found else YELLOW}'{pattern1}':{pattern1_found}{RESET}      "
-        f"{GREEN if pattern2_found else YELLOW}'{pattern2}':{pattern2_found}{RESET}      "
-        f"{GREEN if pattern3_found else YELLOW}'{pattern3}':{pattern3_found}{RESET}"
-    )
-    sys.exit(f"{RED}platformio.ini is still set to a debug configuration, go change it right meow{RESET}")
 
 
 
@@ -193,11 +251,11 @@ def compare_filesystem_versions(path):
         return local_fs_version
     elif local_parsed == remote_parsed:
         print(f"{YELLOW}Local filesystem ({local_fs_version}) is the same as remote ({remote_fs_version}){RESET}")
-        return None
+        return local_fs_version if DEBUGGING_CONFIGURATION else None
         #sys.exit(f"{YELLOW}filesystem version has not been updated to be above github webpage's filesystem")
     else:
         print(f"{RED}Local filesystem ({local_fs_version}) is older than remote ({remote_fs_version}){RESET}")
-        return None
+        return local_fs_version if DEBUGGING_CONFIGURATION else None
         #sys.exit(f"{RED}filesystem version has not been updated to be above github webpage's filesystem")
 
 
@@ -269,6 +327,7 @@ def build_firmware_image(firmware_version: str, project_dir="."):
     binary_size = os.path.getsize(bin_path)
 
     metadata_path = Path(OTA_FW_VERSION)
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(
         f'"fw_version":"{firmware_version}",\n'
         f'"fw_size":"{binary_size}",\n'
@@ -347,6 +406,7 @@ def build_filesystem_image(filesystem_version: str, project_dir="."):
     binary_size = os.path.getsize(bin_path)
 
     metadata_path = Path(OTA_FS_VERSION)
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(
         f'"fs_version":"{filesystem_version}",\n'
         f'"fs_size":"{binary_size}",\n'
@@ -363,7 +423,7 @@ def build_filesystem_image(filesystem_version: str, project_dir="."):
 
 
 
-def encrypt_binary_with_hmac(input_bin_path, key_path, binary_path):
+def encrypt_binary_with_hmac(input_bin_path, key_path, output_binary_path):
     import os
     import hmac
     import hashlib
@@ -411,14 +471,12 @@ def encrypt_binary_with_hmac(input_bin_path, key_path, binary_path):
 
     printInfo(" AES key derived")
 
-    output_path = binary_path
-
-    if os.path.exists(output_path):
-        age = time.time() - os.path.getmtime(output_path)
+    if os.path.exists(output_binary_path):
+        age = time.time() - os.path.getmtime(output_binary_path)
         if age > 10:
-            print(f"[INFO] {output_path} too old ({age:.1f}s), deleting and rebuilding...")
+            print(f"[INFO] {output_binary_path} too old ({age:.1f}s), deleting and rebuilding...")
             try:
-                os.remove(output_path)
+                os.remove(output_binary_path)
             except FileNotFoundError:
                 pass
 
@@ -429,7 +487,7 @@ def encrypt_binary_with_hmac(input_bin_path, key_path, binary_path):
 
         hmac_ctx = hmac.new(mac_key, nonce, hashlib.sha256)
 
-        with open(input_bin_path, "rb") as f_in, open(output_path, "wb") as f_out:
+        with open(input_bin_path, "rb") as f_in, open(output_binary_path, "wb") as f_out:
             printInfo("Writing nonce...")
             f_out.write(nonce)
 
@@ -458,19 +516,19 @@ def encrypt_binary_with_hmac(input_bin_path, key_path, binary_path):
         print(f"[ERROR] Encryption failed: {e}")
         return None
 
-    if not os.path.exists(output_path):
+    if not os.path.exists(output_binary_path):
         print("[ERROR] Output file was not created")
         return None
 
     with open(input_bin_path, "rb") as f:
         original = f.read()
 
-    with open(output_path, "rb") as f:
+    with open(output_binary_path, "rb") as f:
         encrypted = f.read()
 
     if encrypted != original:
-        print(f"{GREEN}[SUCCESS] Encrypted file written to: {output_path}{RESET}")
-        return output_path
+        print(f"{GREEN}[SUCCESS] Encrypted file written to: {output_binary_path}{RESET}")
+        return output_binary_path
     else:
         print("[ERROR] File was not encrypted.")
         return None
@@ -757,7 +815,7 @@ def verify_encrypted_binary_chunked(encrypted_file_location, original_file_locat
 def main():
     check_internet_connection()
     
-    check_pio_ini_release_flag(PIO_INI_PATH)
+    check_pio_ini_release_flags(PLATFORMIO_INI)
 
     update_firmware_version_number = compare_firmware_versions(FIRMWARE_PATH)
 
