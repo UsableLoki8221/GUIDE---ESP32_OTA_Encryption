@@ -7,6 +7,8 @@ https://github.com/UsableLoki8221/GUIDE---ESP32_OTA_Encryption
 
 const String FIRMWARE_VERSION = "1.1.1";
 
+constexpr hmac_key_id_t OTA_HMAC_KEY_ID = HMAC_KEY1;
+
 #define FILESYSTEM true // remove sections of code if you don't have a filesystem
 
 const char* version_url = "https://raw.githubusercontent.com/UsableLoki8221/GUIDE---ESP32_OTA_Encryption/refs/heads/main/version.txt";
@@ -145,12 +147,12 @@ bool derive_keys(uint8_t *enc_key, uint8_t *mac_key) {
     const char *ctx1 = "OTA_AES_KEY_V1";
     const char *ctx2 = "OTA_HMAC_KEY_V1";
 
-    if (esp_hmac_calculate(HMAC_KEY1, (const uint8_t*)ctx1, strlen(ctx1), enc_key) != ESP_OK) {
+    if (esp_hmac_calculate(OTA_HMAC_KEY_ID, (const uint8_t*)ctx1, strlen(ctx1), enc_key) != ESP_OK) {
         log_e("hmac fail-1");
         return false;
     }
 
-    if (esp_hmac_calculate(HMAC_KEY1, (const uint8_t*)ctx2, strlen(ctx2), mac_key) != ESP_OK) {
+    if (esp_hmac_calculate(OTA_HMAC_KEY_ID, (const uint8_t*)ctx2, strlen(ctx2), mac_key) != ESP_OK) {
       log_e("hmac fail-2");
         return false;
     }
@@ -761,5 +763,3 @@ void loop() {
     //this is to ensure staggering updates between all devices
     if (digitalRead(UPDATE_BUTTON_PIN)) checkForUpdates();
 }
-
-
