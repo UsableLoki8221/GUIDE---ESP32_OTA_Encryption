@@ -36,6 +36,8 @@ const char* WIFI_PASSWORD = "YOUR PASS";
 
 #include "esp32-hal-log.h"
 
+#include "esp_ota_ops.h"
+
 
 #define LED_PIN 4
 #define LED_PIN2 6
@@ -75,21 +77,21 @@ Adafruit_NeoPixel LED1(2, LED_PIN, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel LED2(2, LED_PIN2, NEO_GRB + NEO_KHZ800);
 
 void showLEDms(int ms, int r, int g, int b) {
-  static bool initialize = true;
-  if (initialize){
-    initialize = false;
-    LED1.begin();
-    LED2.begin();
-  }
+static bool initialize = true;
+if (initialize){
+initialize = false;
+LED1.begin();
+LED2.begin();
+}
 
-  uint32_t color = LED1.Color(r, g, b);
-  LED1.setPixelColor(0, color);
-  LED1.setPixelColor(1, color);
-  LED1.show();
-  LED2.setPixelColor(0, color);
-  LED2.setPixelColor(1, color);
-  LED2.show();
-  delay(ms);
+uint32_t color = LED1.Color(r, g, b);
+LED1.setPixelColor(0, color);
+LED1.setPixelColor(1, color);
+LED1.show();
+LED2.setPixelColor(0, color);
+LED2.setPixelColor(1, color);
+LED2.show();
+delay(ms);
 }
 
 
@@ -183,6 +185,10 @@ int updateOTA(const String& updateType,
     }
 
     log_i("Starting OTA download");
+    log_i("Sending HTTP GET request");
+    log_i("Note: if crash occurs right after this message then there is an issue with the webpage being retrieved.");
+    log_i("Webpage may not truly be a raw file download.");
+    log_i("example: https://github.com/.../encrypted.bin causes crash, instead use https://raw.githubusercontent.com/.../encrypted.bin URL");
 
     int httpCode = http.GET();
 
@@ -656,40 +662,92 @@ void checkForUpdates() {
   }
 }
 
+///////
+
+/* BUILD FLAG PROVIDES AUTOMATIC UPDATE ROLLBACK FUNCTIONS OF...
+-DCONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=1
+firmware crashes during boot
+watchdog resets early
+kernel panic occurs before reaching stable runtime
+*/
+RTC_DATA_ATTR int otaBootCount = 0;
+const int MAX_OTA_BOOT_COUNT = 3;
+
+bool validationPending = false;
+
+void checkFirstBootAfterOTA_SETUP() {
+  const esp_partition_t* running = esp_ota_get_running_partition();
+  esp_ota_img_states_t ota_state;
+
+  checkFirstBootAfterOTA_LOOP();
+
+  if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK) {
+    if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
+      log_i("ESP_OTA_IMG_PENDING_VERIFY... waiting for OTA verification on WifI Connect");
+      validationPending = true;
+      otaBootCount++;
+    }
+  }
+}
+
+void checkFirstBootAfterOTA_LOOP() {
+  if (!validationPending) return;
+
+  if (otaBootCount > MAX_OTA_BOOT_COUNT) {
+    log_e("OTA boot limit exceeded → rollback");
+    esp_ota_mark_app_invalid_rollback_and_reboot();
+    return;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
+
+    if (err == ESP_OK) {
+      log_i("OTA Update deemed valid and verified!");
+      validationPending = false;
+      otaBootCount = 0;
+    } else {
+      log_e("Failed to mark OTA firmware valid: %s", esp_err_to_name(err));
+    }
+  }
+}
 
 
 //////////////////////////////////////////////////
 
 void setup() {
-  Serial.begin(115200);
-  delay(1000);
+    Serial.begin(115200);
+    delay(1000);
 
     log_i("START UP");
 
-  showLEDms(1000, 40, 40, 40);
-  showLEDms(1000, 0, 0, 0);
+    checkFirstBootAfterOTA_SETUP();
 
-  randomSeed(ESP.getEfuseMac());
+    showLEDms(1000, 40, 40, 40);
+    showLEDms(1000, 0, 0, 0);
 
-  if (!connectWiFi()) {
-      log_e("Unable to connect to WiFi");
-  }
+    randomSeed(ESP.getEfuseMac());
+
+    if (!connectWiFi()) {
+        log_e("Unable to connect to WiFi");
+    }
 
 }
 
 
 void loop() {
-  String fsVersion = getLocalFSVersion();
+    checkFirstBootAfterOTA_LOOP(); // OTA marks itself as valid once you have WiFi connection, change this behavior if you prefer different verification
 
-  log_i("Current Firmware Version: %s", FIRMWARE_VERSION.c_str());
-  log_i("Current Filesystem Version: %s", fsVersion.c_str());
+    String fsVersion = getLocalFSVersion();
 
-  if (FIRMWARE_VERSION == "2.2.2") showLEDms(1000, 00, 00, 40); //BLUE
-  if (fsVersion == "2.2.2") showLEDms(1000, 40, 0, 40); //PURPLE
+    log_i("Current Firmware Version: %s", FIRMWARE_VERSION.c_str());
+    log_i("Current Filesystem Version: %s", fsVersion.c_str());
 
-  if (FIRMWARE_VERSION == "1.1.1") showLEDms(1000, 00, 40, 0); //GREEN
-  if (fsVersion == "1.1.1") showLEDms(1000, 0, 40, 40); //CYAN
+    if (FIRMWARE_VERSION == "2.2.2") showLEDms(1000, 00, 00, 40); //BLUE
+    if (fsVersion == "2.2.2") showLEDms(1000, 40, 0, 40); //PURPLE
 
-  
-  checkForUpdates();
+    if (FIRMWARE_VERSION == "1.1.1") showLEDms(1000, 00, 40, 0); //GREEN
+    if (fsVersion == "1.1.1") showLEDms(1000, 0, 40, 40); //CYAN
+
+    checkForUpdates();
 }
