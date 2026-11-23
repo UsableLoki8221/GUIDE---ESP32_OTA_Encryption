@@ -820,11 +820,11 @@ def main():
     if failFlag:
         print(f"ERROR WITH {mac}")
         mac = mac + "_ERROR"
-        if LOG_MAC_ID_TO_CSV:log_to_csv(mac, FLASH_BIT_TO_BURN)
+        if LOG_MAC_ID_TO_CSV:log_to_csv(mac, FLASH_BIT_TO_BURN if BURN_FLASH_ENCRYPTION else "0")
         return False
     
     # Log
-    if LOG_MAC_ID_TO_CSV:log_to_csv(mac, FLASH_BIT_TO_BURN)
+    if LOG_MAC_ID_TO_CSV:log_to_csv(mac, FLASH_BIT_TO_BURN if BURN_FLASH_ENCRYPTION else "0")
 
     print(f"{GREEN}Provisioning complete{RESET}")
     return True
