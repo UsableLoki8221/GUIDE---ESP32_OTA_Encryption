@@ -38,6 +38,7 @@ const char* WIFI_PASSWORD = "YOUR PASS";
 
 #include "esp_ota_ops.h"
 
+#define UPDATE_BUTTON_PIN 12
 
 #define LED_PIN 4
 #define LED_PIN2 6
@@ -723,6 +724,8 @@ void setup() {
 
     checkFirstBootAfterOTA_SETUP();
 
+    pinMode(UPDATE_BUTTON_PIN, INPUT_PULLUP);
+
     showLEDms(1000, 40, 40, 40);
     showLEDms(1000, 0, 0, 0);
 
@@ -745,11 +748,14 @@ void loop() {
 
     if (FIRMWARE_VERSION == "1.1.1") showLEDms(1000, 00, 40, 0); //GREEN
     if (fsVersion == "1.1.1") showLEDms(1000, 0, 40, 40); //CYAN
-    
+
     if (FIRMWARE_VERSION == "2.2.2") showLEDms(1000, 00, 00, 40); //BLUE
     if (fsVersion == "2.2.2") showLEDms(1000, 40, 0, 40); //PURPLE
 
-
-    checkForUpdates();
+    //button simply used for demo
+    //check for updates will check at a span between every 6-7 days
+    //this is to ensure staggering updates between all devices
+    if (digitalRead(UPDATE_BUTTON_PIN)) checkForUpdates();
 }
+
 
