@@ -26,6 +26,9 @@ COM_PORT = ""                   # leave as "" to auto-detect esp COM port, other
 
 LOG_MAC_ID_TO_CSV = True        # if you want to record provisioned devices
 
+BURN_FLASH_ENCRYPTION = True
+BURN_OTA_ENCRYPTION = True
+
 
 #choose your mode: (choose one, comment the rest)
 #FLASH_BIT_TO_BURN = "0b001"    #<--recommended imo
@@ -49,7 +52,6 @@ if (!esp_flash_encryption_cfg_verify_release_mode()) {
 }
 '''
 
-DEBUG_ABORT = False
 ENABLE_INFO = True
 
 ###
@@ -301,11 +303,11 @@ def enter_bootloader(COM_PORT):
 
 ######################## UPDATE STATEMENT IF ADDING MORE KEYS
 def burn_efuse(
-        COM_PORT, 
-        FLASH_ENCRYPTION_KEY_flag, 
-        OTA_ENCRYPTION_KEY_flag,
-        SPI_BOOT_CRYPT_CNT_flag
-        ):
+    COM_PORT,
+    FLASH_ENCRYPTION_KEY_flag=False,
+    OTA_ENCRYPTION_KEY_flag=False,
+    SPI_BOOT_CRYPT_CNT_flag=False
+):
 
     try:
         def run_stream(command, description, timeout=60):
@@ -641,25 +643,27 @@ def main():
 
     mac, mac_bytes = mac_result
 
-    ########################
-    FLASH_ENCRYPTION_KEY = load_key(FLASH_ENCRYPTION_KEY_FILE)
-    if FLASH_ENCRYPTION_KEY is not None: print(f"{PURPLE}FLASH_ENCRYPTION key loaded{RESET}")
-    else: 
-        print(f"ERROR: FLASH_ENCRYPTION_KEY is None{RESET}")
-        return False
-    if len(FLASH_ENCRYPTION_KEY) != 32:
-        raise ValueError("FLASH_ENCRYPTION_KEY must be 32 bytes")
-    ########################
+    ######################## Key block
+    if BURN_FLASH_ENCRYPTION:
+        FLASH_ENCRYPTION_KEY = load_key(FLASH_ENCRYPTION_KEY_FILE)
+        if FLASH_ENCRYPTION_KEY is not None: print(f"{PURPLE}FLASH_ENCRYPTION key loaded{RESET}")
+        else: 
+            print(f"ERROR: FLASH_ENCRYPTION_KEY is None{RESET}")
+            return False
+        if len(FLASH_ENCRYPTION_KEY) != 32:
+            raise ValueError("FLASH_ENCRYPTION_KEY must be 32 bytes")
+    ######################## Key block
 
-    ########################
-    OTA_ENCRYPTION_KEY = load_key(OTA_ENCRYPTION_KEY_FILE)
-    if OTA_ENCRYPTION_KEY is not None: print(f"{PURPLE}OTA_ENCRYPTION key loaded{RESET}")
-    else: 
-        print(f"ERROR: OTA_ENCRYPTION_KEY is None{RESET}")
-        return False
-    if len(OTA_ENCRYPTION_KEY) != 32:
-        raise ValueError("OTA_ENCRYPTION_KEY must be 32 bytes")
-    ########################
+    ######################## Key block
+    if BURN_OTA_ENCRYPTION:
+        OTA_ENCRYPTION_KEY = load_key(OTA_ENCRYPTION_KEY_FILE)
+        if OTA_ENCRYPTION_KEY is not None: print(f"{PURPLE}OTA_ENCRYPTION key loaded{RESET}")
+        else: 
+            print(f"ERROR: OTA_ENCRYPTION_KEY is None{RESET}")
+            return False
+        if len(OTA_ENCRYPTION_KEY) != 32:
+            raise ValueError("OTA_ENCRYPTION_KEY must be 32 bytes")
+    ######################## Key block
     
 
 
@@ -668,89 +672,105 @@ def main():
         print(f"{RED}Failed to retrieve eFuse summary, aborting.{RESET}")
         return False
 
-    ########################
-    FLASH_ENCRYPTION_KEY_flag = True
-    flash_encryption_slot_burned = is_efuse_already_burned(fuse_summary, FLASH_ENCRYPTION_KEY_SLOT)
-    if flash_encryption_slot_burned:
-        print(f"{YELLOW}slot{FLASH_ENCRYPTION_KEY_SLOT} (flash_encryption) already burned: Setting flag to prevent overwriting eFuse{RESET}")
-        FLASH_ENCRYPTION_KEY_flag = False
-        if not verify_key_purpose(fuse_summary, FLASH_ENCRYPTION_KEY_SLOT, "XTS_AES_128_KEY"):
-            print(f"{RED}DESIGNATED SLOT FOR ENCRYPTION ALREADY HAS A DIFFERENT TYPE OF KEY PLACED IN SLOT: {FLASH_ENCRYPTION_KEY_SLOT}{RESET}") 
-        else: 
-            print(f"{GREEN}XTS_AES_128_KEY has already been assigned in slot: {FLASH_ENCRYPTION_KEY_SLOT}{RESET}") 
-    ########################
+    ##################
+    #FLAGS SECTION
+    ##################
+
+    ######################## Key block
+    FLASH_ENCRYPTION_KEY_flag = BURN_FLASH_ENCRYPTION
+    if BURN_FLASH_ENCRYPTION:
+        flash_encryption_slot_burned = is_efuse_already_burned(fuse_summary, FLASH_ENCRYPTION_KEY_SLOT)
+        if flash_encryption_slot_burned:
+            print(f"{YELLOW}slot{FLASH_ENCRYPTION_KEY_SLOT} (flash_encryption) already burned: Setting flag to prevent overwriting eFuse{RESET}")
+            FLASH_ENCRYPTION_KEY_flag = False
+            if not verify_key_purpose(fuse_summary, FLASH_ENCRYPTION_KEY_SLOT, "XTS_AES_128_KEY"):
+                print(f"{RED}DESIGNATED SLOT FOR ENCRYPTION ALREADY HAS A DIFFERENT TYPE OF KEY PLACED IN SLOT: {FLASH_ENCRYPTION_KEY_SLOT}{RESET}") 
+            else: 
+                print(f"{GREEN}XTS_AES_128_KEY has already been assigned in slot: {FLASH_ENCRYPTION_KEY_SLOT}{RESET}") 
+    ######################## Key block
     
-    ########################
-    OTA_ENCRYPTION_KEY_flag = True
-    ota_encryption_slot_burned = is_efuse_already_burned(fuse_summary, OTA_ENCRYPTION_KEY_SLOT)
-    if ota_encryption_slot_burned:
-        print(f"{YELLOW}slot{OTA_ENCRYPTION_KEY_SLOT} (ota_encryption) already burned: Setting flag to prevent overwriting eFuse{RESET}")
-        OTA_ENCRYPTION_KEY_flag = False
-        if not verify_key_purpose(fuse_summary, OTA_ENCRYPTION_KEY_SLOT, "HMAC_UP"):
-            print(f"{RED}DESIGNATED SLOT FOR OTA ENCRYPTION ALREADY HAS A DIFFERENT TYPE OF KEY PLACED IN SLOT: {OTA_ENCRYPTION_KEY_SLOT}{RESET}") 
-        else: 
-            print(f"{GREEN}HMAC_UP has already been assigned in slot: {OTA_ENCRYPTION_KEY_SLOT}{RESET}") 
-    ########################
+    ######################## Key block
+    OTA_ENCRYPTION_KEY_flag = BURN_OTA_ENCRYPTION
+    if BURN_OTA_ENCRYPTION:
+        ota_encryption_slot_burned = is_efuse_already_burned(fuse_summary, OTA_ENCRYPTION_KEY_SLOT)
+        if ota_encryption_slot_burned:
+            print(f"{YELLOW}slot{OTA_ENCRYPTION_KEY_SLOT} (ota_encryption) already burned: Setting flag to prevent overwriting eFuse{RESET}")
+            OTA_ENCRYPTION_KEY_flag = False
+            if not verify_key_purpose(fuse_summary, OTA_ENCRYPTION_KEY_SLOT, "HMAC_UP"):
+                print(f"{RED}DESIGNATED SLOT FOR OTA ENCRYPTION ALREADY HAS A DIFFERENT TYPE OF KEY PLACED IN SLOT: {OTA_ENCRYPTION_KEY_SLOT}{RESET}") 
+            else: 
+                print(f"{GREEN}HMAC_UP has already been assigned in slot: {OTA_ENCRYPTION_KEY_SLOT}{RESET}") 
+    ######################## Key block
 
-
-    SPI_BOOT_CRYPT_CNT_flag = setFuseFlag(fuse_summary, "SPI_BOOT_CRYPT_CNT") # this used to set the bool but realized it was unncessary with the logic below
-                                                                              # leaving it in because it updates a global variable (FOUND_BIT)
-    SPI_BOOT_CRYPT_CNT_flag = True
-    if int(FLASH_BIT_TO_BURN, 2) < int(FOUND_BIT, 2):
-        print(
-            f"{RED}The SPI_BOOT_CRYPT_CNT bit cannot be less than {BOLD}{BLUE}{FOUND_BIT}{RESET}{RED} "
-            f"as that is what was found within the ESP\n"
-            f"You currently have FLASH_BIT_TO_BURN set to: {ORANGE}{FLASH_BIT_TO_BURN}{RESET}"
-        )
-        return False
+    ######################## eFuse setting
+    SPI_BOOT_CRYPT_CNT_flag = BURN_FLASH_ENCRYPTION
+    if BURN_FLASH_ENCRYPTION:
+        SPI_BOOT_CRYPT_CNT_flag = setFuseFlag(fuse_summary, "SPI_BOOT_CRYPT_CNT") # this used to set the bool but realized it was unncessary with the logic below
+                                                                                # leaving it in because it updates a global variable (FOUND_BIT)
+        SPI_BOOT_CRYPT_CNT_flag = True
+        if int(FLASH_BIT_TO_BURN, 2) < int(FOUND_BIT, 2):
+            print(
+                f"{RED}The SPI_BOOT_CRYPT_CNT bit cannot be less than {BOLD}{BLUE}{FOUND_BIT}{RESET}{RED} "
+                f"as that is what was found within the ESP\n"
+                f"You currently have FLASH_BIT_TO_BURN set to: {ORANGE}{FLASH_BIT_TO_BURN}{RESET}"
+            )
+            return False
+    ######################## eFuse setting
 
        
+    ###############
+    # MESSAGES TO USER SECTION BEFORE CONFIRM OPERATION
+    ###############
+
     print(f"{ORANGE}Settings-{RESET}")    
-    ########################
-    if FLASH_ENCRYPTION_KEY_flag: print(f"{ORANGE}Preparing to burn key into device: {PURPLE}FLASH_ENCRYPTION_KEY_flag, Slot: {FLASH_ENCRYPTION_KEY_SLOT}{RESET}")
-    else : print(f"{ORANGE}Flash encryption key is flagged to {BOLD}NOT{RESET}{ORANGE} burn since there is already a key in slot {FLASH_ENCRYPTION_KEY_SLOT}{RESET}")
-    ########################
+    ######################## Key block
+    if BURN_FLASH_ENCRYPTION:
+        if FLASH_ENCRYPTION_KEY_flag: print(f"{ORANGE}Preparing to burn key into device: {PURPLE}FLASH_ENCRYPTION_KEY_flag, Slot: {FLASH_ENCRYPTION_KEY_SLOT}{RESET}")
+        else : print(f"{ORANGE}Flash encryption key is flagged to {BOLD}NOT{RESET}{ORANGE} burn since there is already a key in slot {FLASH_ENCRYPTION_KEY_SLOT}{RESET}")
+    ######################## Key block
 
-    ########################
-    if OTA_ENCRYPTION_KEY_flag: print(f"{ORANGE}Preparing to burn key into device: {PURPLE}OTA_ENCRYPTION_KEY_flag, Slot: {OTA_ENCRYPTION_KEY_SLOT}{RESET}")
-    else : print(f"{ORANGE}OTA encryption key is flagged to {BOLD}NOT{RESET}{ORANGE} burn since there is already a key in slot {OTA_ENCRYPTION_KEY_SLOT}{RESET}")
-    ########################
+    ######################## Key block
+    if BURN_OTA_ENCRYPTION:
+        if OTA_ENCRYPTION_KEY_flag: print(f"{ORANGE}Preparing to burn key into device: {PURPLE}OTA_ENCRYPTION_KEY_flag, Slot: {OTA_ENCRYPTION_KEY_SLOT}{RESET}")
+        else : print(f"{ORANGE}OTA encryption key is flagged to {BOLD}NOT{RESET}{ORANGE} burn since there is already a key in slot {OTA_ENCRYPTION_KEY_SLOT}{RESET}")
+    ######################## Key block
 
-    if int(FLASH_BIT_TO_BURN, 2) == int(FOUND_BIT, 2):
-        SPI_BOOT_CRYPT_CNT_flag = False
-        print(f"{ORANGE}SPI_BOOT_CRYPT_CNT already set to {FLASH_BIT_TO_BURN}{RESET}")
-    else:
-        print(
-            f"{BLUE}Found bit in device: {FOUND_BIT}{ORANGE} -> Flash bit to burn: {VIOLET}{FLASH_BIT_TO_BURN} - "
-            f"({ 'Dev mode' if FLASH_BIT_TO_BURN == '0b001' else 'Release mode' if FLASH_BIT_TO_BURN == '0b111' else 'Flash encryption disabled' if FLASH_BIT_TO_BURN in ('0b011', '0b000') else 'Unknown mode' }){RESET}"
-        )
+    ######################## eFuse setting
+    if BURN_FLASH_ENCRYPTION:
+        if int(FLASH_BIT_TO_BURN, 2) == int(FOUND_BIT, 2):
+            SPI_BOOT_CRYPT_CNT_flag = False
+            print(f"{ORANGE}SPI_BOOT_CRYPT_CNT already set to {FLASH_BIT_TO_BURN}{RESET}")
+        else:
+            print(
+                f"{BLUE}Found bit in device: {FOUND_BIT}{ORANGE} -> Flash bit to burn: {VIOLET}{FLASH_BIT_TO_BURN} - "
+                f"({ 'Dev mode' if FLASH_BIT_TO_BURN == '0b001' else 'Release mode' if FLASH_BIT_TO_BURN == '0b111' else 'Flash encryption disabled' if FLASH_BIT_TO_BURN in ('0b011', '0b000') else 'Unknown mode' }){RESET}"
+            )
 
-    print(f"{ORANGE}\nONCE A KEY OR A SETTING HAS BEEN BURNED INTO THE DEVICE IT CANNOT BE UNDONE- Example: 0b111 -> 0b011 is not possible\n")
+        print(f"{ORANGE}\nONCE A KEY OR A SETTING HAS BEEN BURNED INTO THE DEVICE IT CANNOT BE UNDONE- Example: 0b111 -> 0b011 is not possible\n")
+    ######################## eFuse setting
 
-    ######################## update here if adding more keys
-    if int(FLASH_BIT_TO_BURN, 2) == int(FOUND_BIT, 2) and not FLASH_ENCRYPTION_KEY_flag and not OTA_ENCRYPTION_KEY_flag:
-        print(f"{RED}ESP ALREADY HAS KEY BURNED INTO THE SLOT {BLUE}{BOLD}{FLASH_ENCRYPTION_KEY_SLOT} AND {BLUE}{BOLD}{OTA_ENCRYPTION_KEY_SLOT} {RESET}{RED} AND THE SPI_BOOT_CRYPT_CNT FUSE HAS ALREADY BEEN SET TO {BLUE}{BOLD}{FOUND_BIT}{RESET}{RED}- ABORTING")
+
+    ######################## update here if adding more efuse keys and settings
+    if not SPI_BOOT_CRYPT_CNT_flag and not FLASH_ENCRYPTION_KEY_flag and not OTA_ENCRYPTION_KEY_flag:
+        print(f"{ORANGE}{BOLD}ALL FUSES TO THIS DEVICES HAVE BEEN DETECT AS ALREADY SET{RED} - ABORTING{RESET}")
         return False
-    ######################## update here if adding more keys
+    ######################## update here if adding more keys keys and settings
 
-    if DEBUG_ABORT:
-        print(f"{BLUE}DEBUG ABORT IS ACTIVE, THE OPERATION IS ABORTING AT THIS POINT TO PREVENT UNINTENDED FUSE BURNING{RESET}")
-        return False
 
-        # Confirm---------------------------------------------- 
-        # I preferred this because espressif's burn command has you manually type BURN before actually executing the command (and its invisible so you don't know if you typo'd)
-        # You can comment/remove this if you're confident in this process for faster burning
+    # Confirm---------------------------------------------- 
+    # I preferred this because espressif's burn command has you manually type BURN before actually executing the command (and its invisible so you don't know if you typo'd)
+    # You can comment/remove this if you're confident in this process for faster burning
     if not confirm_burn(mac):
         print(f"{RED}User aborted{RESET}")
         return False
 
     print(f"{ORANGE}\nTHE FOLLOWING OPERATIONS TAKE A WHILE TO EXECUTE, ITS RECOMMENDED TO NOT INTERRUPT THE SCRIPT AT THIS POINT\n{RESET}")
 
-    enter_bootloader(COM_PORT) # this helps if you forgot you left your serial monitor on when reflashing
+    enter_bootloader(COM_PORT)
 
-    #BURN BABY BURN ########################
+    #BURN BABY BURN ######################## update all flags
     burn_efuse(COM_PORT, FLASH_ENCRYPTION_KEY_flag, OTA_ENCRYPTION_KEY_flag, SPI_BOOT_CRYPT_CNT_flag)
-    #BURN BABY BURN ########################
+    #BURN BABY BURN ######################## update all flags
 
     time.sleep(0.5)
     fuse_summary = esp_retrieve_fuse_summary(COM_PORT)
@@ -759,34 +779,43 @@ def main():
         return False
 
     failFlag = False
-    SPI_BOOT_CRYPT_CNT_flag = setFuseFlag(fuse_summary, "SPI_BOOT_CRYPT_CNT", True)
 
-    if SPI_BOOT_CRYPT_CNT_flag:
-        print(f"{GREEN}eFuse flags successfully programmed!{RESET}")
-    else: 
-        print(f"{RED}eFuse PROGRAMMING DID NOT WORK!{RESET}")
-        print(f"SPI_BOOT_CRYPT_CNT_flag: {SPI_BOOT_CRYPT_CNT_flag}")
-        failFlag = True
+    ################
+    #CONFIRM ALL EFUSE ACTIONS
+    ################
 
-    ########################
-    flash_encryption_slot_burned = is_efuse_already_burned(fuse_summary, FLASH_ENCRYPTION_KEY_SLOT)
-    if not flash_encryption_slot_burned:
-        print(f"{RED}eFuse slot did not have key burned: slot {FLASH_ENCRYPTION_KEY_SLOT}{RESET}") 
-        failFlag = True
-    if not verify_key_purpose(fuse_summary, FLASH_ENCRYPTION_KEY_SLOT, "XTS_AES_128_KEY"):
-        print(f"{RED}eFuse purpose incorrect- slot {FLASH_ENCRYPTION_KEY_SLOT}{RESET}") 
-        failFlag = True 
-    ########################
+    ######################## Key block
+    if BURN_FLASH_ENCRYPTION:
+        flash_encryption_slot_burned = is_efuse_already_burned(fuse_summary, FLASH_ENCRYPTION_KEY_SLOT)
+        if not flash_encryption_slot_burned:
+            print(f"{RED}eFuse slot did not have key burned: slot {FLASH_ENCRYPTION_KEY_SLOT}{RESET}") 
+            failFlag = True
+        if not verify_key_purpose(fuse_summary, FLASH_ENCRYPTION_KEY_SLOT, "XTS_AES_128_KEY"):
+            print(f"{RED}eFuse purpose incorrect- slot {FLASH_ENCRYPTION_KEY_SLOT}{RESET}") 
+            failFlag = True 
+    ######################## Key block
 
-    ########################
-    ota_encryption_slot_burned = is_efuse_already_burned(fuse_summary, OTA_ENCRYPTION_KEY_SLOT)
-    if not ota_encryption_slot_burned:
-        print(f"{RED}eFuse slot did not have key burned: slot {OTA_ENCRYPTION_KEY_SLOT}{RESET}") 
-        failFlag = True
-    if not verify_key_purpose(fuse_summary, OTA_ENCRYPTION_KEY_SLOT, "HMAC"):
-        print(f"{RED}eFuse purpose incorrect- slot {OTA_ENCRYPTION_KEY_SLOT}{RESET}") 
-        failFlag = True 
-    ########################
+    ######################## Key block
+    if BURN_OTA_ENCRYPTION:
+        ota_encryption_slot_burned = is_efuse_already_burned(fuse_summary, OTA_ENCRYPTION_KEY_SLOT)
+        if not ota_encryption_slot_burned:
+            print(f"{RED}eFuse slot did not have key burned: slot {OTA_ENCRYPTION_KEY_SLOT}{RESET}") 
+            failFlag = True
+        if not verify_key_purpose(fuse_summary, OTA_ENCRYPTION_KEY_SLOT, "HMAC"):
+            print(f"{RED}eFuse purpose incorrect- slot {OTA_ENCRYPTION_KEY_SLOT}{RESET}") 
+            failFlag = True 
+    ######################## Key block
+    
+    ######################## eFuse setting
+    if BURN_FLASH_ENCRYPTION:
+        SPI_BOOT_CRYPT_CNT_flag = setFuseFlag(fuse_summary, "SPI_BOOT_CRYPT_CNT", True)
+        if SPI_BOOT_CRYPT_CNT_flag:
+            print(f"{GREEN}eFuse flags successfully programmed!{RESET}")
+        else: 
+            print(f"{RED}eFuse PROGRAMMING DID NOT WORK!{RESET}")
+            print(f"SPI_BOOT_CRYPT_CNT_flag: {SPI_BOOT_CRYPT_CNT_flag}")
+            failFlag = True
+    ######################## eFuse setting
 
     if failFlag:
         print(f"ERROR WITH {mac}")
