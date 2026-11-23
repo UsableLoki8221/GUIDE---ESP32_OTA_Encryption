@@ -78,21 +78,21 @@ Adafruit_NeoPixel LED1(2, LED_PIN, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel LED2(2, LED_PIN2, NEO_GRB + NEO_KHZ800);
 
 void showLEDms(int ms, int r, int g, int b) {
-static bool initialize = true;
-if (initialize){
-initialize = false;
-LED1.begin();
-LED2.begin();
-}
+    static bool initialize = true;
+    if (initialize){
+        initialize = false;
+        LED1.begin();
+        LED2.begin();
+    }
 
-uint32_t color = LED1.Color(r, g, b);
-LED1.setPixelColor(0, color);
-LED1.setPixelColor(1, color);
-LED1.show();
-LED2.setPixelColor(0, color);
-LED2.setPixelColor(1, color);
-LED2.show();
-delay(ms);
+    uint32_t color = LED1.Color(r, g, b);
+    LED1.setPixelColor(0, color);
+    LED1.setPixelColor(1, color);
+    LED1.show();
+    LED2.setPixelColor(0, color);
+    LED2.setPixelColor(1, color);
+    LED2.show();
+    delay(ms);
 }
 
 
@@ -187,9 +187,9 @@ int updateOTA(const String& updateType,
 
     log_i("Starting OTA download");
     log_i("Sending HTTP GET request");
-    log_i("Note: if crash occurs right after this message then there is an issue with the webpage being retrieved.");
-    log_i("Webpage may not truly be a raw file download.");
-    log_i("example: https://github.com/.../encrypted.bin causes crash, instead use https://raw.githubusercontent.com/.../encrypted.bin URL");
+    log_i("-----Note: if crash occurs right after this message then there is an issue with the webpage being retrieved.");
+    log_i("-----Webpage may not truly be a raw file download.");
+    log_i("-----example: https://github.com/.../encrypted.bin causes crash, instead use https://raw.githubusercontent.com/.../encrypted.bin URL");
 
     int httpCode = http.GET();
 
@@ -527,6 +527,7 @@ void checkForUpdates() {
     initialState = false;
 
     log_i("CHECKING FOR UPDATES...");
+    showLEDms(0, 40, 10, 0);
 
     bool restart = false;
 
@@ -676,21 +677,6 @@ const int MAX_OTA_BOOT_COUNT = 3;
 
 bool validationPending = false;
 
-void checkFirstBootAfterOTA_SETUP() {
-  const esp_partition_t* running = esp_ota_get_running_partition();
-  esp_ota_img_states_t ota_state;
-
-  checkFirstBootAfterOTA_LOOP();
-
-  if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK) {
-    if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
-      log_i("ESP_OTA_IMG_PENDING_VERIFY... waiting for OTA verification on WifI Connect");
-      validationPending = true;
-      otaBootCount++;
-    }
-  }
-}
-
 void checkFirstBootAfterOTA_LOOP() {
   if (!validationPending) return;
 
@@ -714,7 +700,24 @@ void checkFirstBootAfterOTA_LOOP() {
 }
 
 
+void checkFirstBootAfterOTA_SETUP() {
+  const esp_partition_t* running = esp_ota_get_running_partition();
+  esp_ota_img_states_t ota_state;
+
+  checkFirstBootAfterOTA_LOOP();
+
+  if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK) {
+    if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
+      log_i("ESP_OTA_IMG_PENDING_VERIFY... waiting for OTA verification on WifI Connect");
+      validationPending = true;
+      otaBootCount++;
+    }
+  }
+}
+
+
 //////////////////////////////////////////////////
+
 
 void setup() {
     Serial.begin(115200);
@@ -727,7 +730,7 @@ void setup() {
     pinMode(UPDATE_BUTTON_PIN, INPUT_PULLUP);
 
     showLEDms(1000, 40, 40, 40);
-    showLEDms(1000, 0, 0, 0);
+    showLEDms(1000, 1, 10, 10);
 
     randomSeed(ESP.getEfuseMac());
 
