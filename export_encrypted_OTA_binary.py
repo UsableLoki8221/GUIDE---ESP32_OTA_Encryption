@@ -40,19 +40,14 @@ version_info_URL = "https://raw.githubusercontent.com/UsableLoki8221/GUIDE---ESP
 
 FILESYSTEM = True # if you use a filesystem in your project this script can also encrypt it for security
 
-ENABLE_INFO = False # display logging events for troubleshooting if needed
-DEBUGGING_CONFIGURATION = True                      # allows for export of serial log messages for testing, set to [False] when ready for release state
+DEBUGGING_CONFIGURATION = True # allows for non-version-controlled export of serial log messages for testing, set to [False] when ready for release state
+# the script does checks for release status since this is aimed at commercial releases (if you don't want to accidentally upload a debug firmware)
+''' release flags checked in .ini file
+    pattern1 = "build_type = release"
+    pattern2 = "-DPRODUCTION=1"
+    pattern3 = "-DCORE_DEBUG_LEVEL=0"
+'''
 
-
-#   THIS SCRIPT WILL AUTOMATICALLY DISTINGUISH WHETHER FIRMWARE OR FILESYSTEM NEED TO BE BUILT
-#                           BASED ON VERSION COMPARISONS FOUND AT 
-#   [FIRMWARE: ON THE .INO AROUND ~LINE 8 AT THE VERSION STRING DECLARATION]
-#   [FILESYSTEM: WITHIN "data\fs_version.txt"]
-
-#
-#   FOLLOW RESPECTIVE INSTRUCTIONS FOR...
-#   FIRMWARE:       "C:\Users\Vero\Desktop\Astro Alerts Files\AAA_Update Firmware OTA Instructions.txt"
-#   FILESYSTEM:     "C:\Users\Vero\Desktop\Astro Alerts Files\AAA_Update FileSystem OTA Instructions.txt"
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -63,13 +58,6 @@ FILESYSTEM_VERSION_TXT_PATH = SCRIPT_DIR / "data/fs_version.txt"    # your file 
 KEY_BASE_NAME = SCRIPT_DIR / "OTA_encryption_key"
 PLATFORMIO_INI = SCRIPT_DIR / "platformio.ini"      # ini location
 
-CHECK_FOR_RELEASE_STATUS = True                     # my script does checks for release status since this is aimed at commercial releases (if you don't want to accidentally upload a debug firmware)
-''' release flags checked in .ini file
-    pattern1 = "build_type = release"
-    pattern2 = "-DPRODUCTION=1"
-    pattern3 = "-DCORE_DEBUG_LEVEL=0"
-'''
-
 # this is where the encrypted binaries will be outputted for upload to your web server
 OTA_FS_BINARY_PATH = SCRIPT_DIR / "OTA_Versions/encrypted_filesystem.bin"
 OTA_FW_BINARY_PATH = SCRIPT_DIR / "OTA_Versions/encrypted_firmware.bin" 
@@ -79,6 +67,7 @@ OTA_FS_VERSION = SCRIPT_DIR / "OTA_Versions/OTA_FS_Version.txt"
 OTA_FW_VERSION = SCRIPT_DIR / "OTA_Versions/OTA_FW_Version.txt"
 
 
+ENABLE_INFO = False                         # display logging events for troubleshooting if needed
 
 ###
 ### you shouldn't need to change anything below here
@@ -837,5 +826,6 @@ def main():
 if __name__ == "__main__":
     main()
     print_rainbow("ALL DONE")
+
 
 
