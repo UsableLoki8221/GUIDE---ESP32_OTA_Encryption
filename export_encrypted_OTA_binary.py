@@ -807,7 +807,6 @@ def main():
     check_pio_ini_release_flags(PLATFORMIO_INI)
 
     update_firmware_version_number = compare_firmware_versions(FIRMWARE_PATH)
-
     if update_firmware_version_number is not None:
         firmware_path, hash_hex = build_firmware_image(update_firmware_version_number)
         encrypted_firmware_path = encrypt_binary_with_hmac(firmware_path, OTA_KEY_PATH, OTA_FW_BINARY_PATH)
@@ -826,6 +825,7 @@ def main():
 if __name__ == "__main__":
     main()
     print_rainbow("ALL DONE")
+
 
 
 
