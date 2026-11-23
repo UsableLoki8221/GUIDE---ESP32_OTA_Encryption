@@ -744,16 +744,17 @@ void setup() {
 void loop() {
     checkFirstBootAfterOTA_LOOP(); // OTA marks itself as valid once you have WiFi connection, change this behavior if you prefer different verification
 
-    String fsVersion = getLocalFSVersion();
-
     log_i("Current Firmware Version: %s", FIRMWARE_VERSION.c_str());
-    log_i("Current Filesystem Version: %s", fsVersion.c_str());
-
     if (FIRMWARE_VERSION == "1.1.1") showLEDms(1000, 00, 40, 0); //GREEN
-    if (fsVersion == "1.1.1") showLEDms(1000, 0, 40, 40); //CYAN
-
     if (FIRMWARE_VERSION == "2.2.2") showLEDms(1000, 00, 00, 40); //BLUE
-    if (fsVersion == "2.2.2") showLEDms(1000, 40, 0, 40); //PURPLE
+
+    if (FILESYSTEM) {
+        String fsVersion = getLocalFSVersion();
+        log_i("Current Filesystem Version: %s", fsVersion.c_str());
+
+        if (fsVersion == "1.1.1") showLEDms(1000, 0, 40, 40); //CYAN
+        if (fsVersion == "2.2.2") showLEDms(1000, 40, 0, 40); //PURPLE
+    }
 
     //button simply used for demo
     //check for updates will check at a span between every 6-7 days
