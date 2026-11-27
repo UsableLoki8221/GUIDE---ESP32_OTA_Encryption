@@ -9,3 +9,4 @@ pyyaml
 esptool==5.2.0
 bitstring<5
 pycryptodome
+requests
