@@ -26,9 +26,20 @@ COM_PORT = ""                   # leave as "" to auto-detect esp COM port, other
 
 LOG_MAC_ID_TO_CSV = True        # if you want to record provisioned devices
 
-BURN_FLASH_ENCRYPTION = True
-BURN_OTA_ENCRYPTION = True
+PROJECT_DIR = Path(__file__).resolve().parent
 
+
+########################
+BURN_FLASH_ENCRYPTION = True
+FLASH_ENCRYPTION_KEY_FILE = PROJECT_DIR / "flash_encryption_key.bin" 
+FLASH_ENCRYPTION_KEY_SLOT = 0 # BLOCK_KEY0 (BLOCK4) ASSIGNED FOR FLASH ENCRYPTION KEY
+########################
+
+########################
+BURN_OTA_ENCRYPTION = True
+OTA_ENCRYPTION_KEY_FILE = PROJECT_DIR / "ota_encryption_key.bin" 
+OTA_ENCRYPTION_KEY_SLOT = 1 # BLOCK_KEY1 (BLOCK5) ASSIGNED FOR OTA ENCRYPTION KEY
+########################
 
 #choose your mode: (choose one, comment the rest)
 #FLASH_BIT_TO_BURN = "0b001"    #<--recommended imo
@@ -58,17 +69,6 @@ ENABLE_INFO = True
 ### you shouldn't need to change anything below here
 ###
 
-PROJECT_DIR = Path(__file__).resolve().parent
-
-########################
-FLASH_ENCRYPTION_KEY_FILE = PROJECT_DIR / "flash_encryption_key.bin" 
-FLASH_ENCRYPTION_KEY_SLOT = 0 # BLOCK_KEY0 (BLOCK4) ASSIGNED FOR FLASH ENCRYPTION KEY
-########################
-
-########################
-OTA_ENCRYPTION_KEY_FILE = PROJECT_DIR / "ota_encryption_key.bin" 
-OTA_ENCRYPTION_KEY_SLOT = 1 # BLOCK_KEY1 (BLOCK5) ASSIGNED FOR OTA ENCRYPTION KEY
-########################
 
 CSV_FILE = PROJECT_DIR / "flash_encrypted_devices.csv" 
 
